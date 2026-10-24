@@ -1,33 +1,29 @@
 <?php
-// Handle POST request from admin panel
+$dataDir = '/var/www/blog-data/';
+$jsonFile = $dataDir . 'posts.json';
+$uploadDir = $dataDir . 'uploads/';
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $title = trim($_POST['title'] ?? '');
     $content = trim($_POST['content'] ?? '');
     $fileData = null;
 
-    // Handle file upload (images, audio, video)
     if (isset($_FILES['media']) && $_FILES['media']['error'] === UPLOAD_ERR_OK) {
-        $uploadDir = 'uploads/';
-        if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0755, true);
-        }
-        
         $fileName = time() . '_' . basename($_FILES['media']['name']);
         $targetPath = $uploadDir . $fileName;
         
         if (move_uploaded_file($_FILES['media']['tmp_name'], $targetPath)) {
+            // Public URL maps through our symlink
             $fileData = [
-                'url' => '/' . $targetPath,
+                'url' => '/uploads/' . $fileName,
                 'type' => $_FILES['media']['type']
             ];
         }
     }
 
     if ($title !== '' && $content !== '') {
-        $jsonFile = 'posts.json';
         $posts = file_exists($jsonFile) ? json_decode(file_get_contents($jsonFile), true) : [];
         
-        // Prepend new post
         array_unshift($posts, [
             'id' => time(),
             'title' => htmlspecialchars($title),
