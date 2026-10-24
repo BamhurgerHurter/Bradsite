@@ -1,1 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>My Blog</title>
+    <style>
+        body {
+            font-family: monospace;
+            max-width: 700px;
+            margin: 40px auto;
+            padding: 0 20px;
+            background: #ffffff;
+            color: #000000;
+        }
+        hr {
+            border: 0;
+            border-top: 1px solid #000;
+            margin: 20px 0;
+        }
+        input, textarea, button {
+            font-family: monospace;
+            font-size: 14px;
+            padding: 4px;
+            margin-bottom: 10px;
+        }
+        img, video, audio {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin-top: 10px;
+        }
+        .admin-nav {
+            font-size: 12px;
+            float: right;
+        }
+    </style>
+</head>
+<body>
 
+<div id="nav"></div>
+<h1>My Blog</h1>
+<hr>
+
+<div id="content">Loading...</div>
+
+<script>
+    const isAdmin = window.location.pathname.startsWith("/admin");
+
+    // Render Navigation header
+    document.getElementById("nav").innerHTML = isAdmin 
+        ? '<span class="admin-nav">[Admin Mode] <a href="/">View Public Blog</a></span>' 
+        : '<span class="admin-nav"><a href="/admin">Admin Login</a></span>';
+
+    // Fetch posts from server json
+    fetch('/posts.json')
+        .then(res => res.json().catch(() => []))
+        .then(posts => {
+            const container = document.getElementById("content");
+
+            if (isAdmin) {
+                // --- ADMIN DASHBOARD ---
+                let html = `
+                    <h3>New Post (Text, Image, Audio, Video)</h3>
+                    <form action="/upload.php" method="POST" enctype="multipart/form-data">
+                        <label>Title:</label><br>
+                        <input type="text" name="title" size="40" required><br>
+                        
+                        <label>Content:</label><br>
+                        <textarea name="content" rows="6" cols="50" required></textarea><br>
+                        
+                        <label>Media File (Image / Audio / Video):</label><br>
+                        <input type="file" name="media" accept="image/*,audio/*,video/*"><br><br>
+                        
+                        <button type="submit">Publish to Server</button>
+                    </form>
+                    <hr>
+                    <h3>Manage Posts</h3>
+                `;
+
+                if (posts.length === 0) {
+                    html += "<p>No posts found.</p>";
+                } else {
+                    html += posts.map(p => `
+                        <div>
+                            <b>${p.title}</b> (${p.date}) 
+                            <a href="/delete.php?id=${p.id}" onclick="return confirm('Delete this post?')"><button type="button">Delete</button></a>
+                        </div>
+                    `).join("<hr>");
+                }
+                container.innerHTML = html;
+
+            } else {
+                // --- PUBLIC BLOG VIEW ---
+                if (posts.length === 0) {
+                    container.innerHTML = "<p>No posts published yet.</p>";
+                    return;
+                }
+
+                container.innerHTML = posts.map(p => {
+                    let mediaHtml = "";
+                    if (p.media) {
+                        if (p.media.type.startsWith("image/")) {
+                            mediaHtml = `<img src="${p.media.url}">`;
+                        } else if (p.media.type.startsWith("video/")) {
+                            mediaHtml = `<video controls src="${p.media.url}"></video>`;
+                        } else if (p.media.type.startsWith("audio/")) {
+                            mediaHtml = `<audio controls src="${p.media.url}"></audio>`;
+                        }
+                    }
+
+                    return `
+                        <h2>${p.title}</h2>
+                        <small>${p.date}</small>
+                        <p>${p.content.replace(/\n/g, '<br>')}</p>
+                        ${mediaHtml}
+                        <hr>
+                    `;
+                }).join("");
+            }
+        })
+        .catch(() => {
+            document.getElementById("content").innerHTML = "<p>Failed to load posts or database is empty.</p>";
+        });
+</script>
+
+</body>
+</html>
