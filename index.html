@@ -9,30 +9,59 @@
 <body>
 <header>
   <a class="logo" href="/">bradley.party</a>
-  <span id="mode" hidden>admin</span>
+  <p class="tag" id="tag">Welcome! Have a look around.</p>
+  <a class="viewsite" id="viewsite" href="/" hidden>View the site</a>
 </header>
 
 <main>
+  <p id="note" class="note" role="status" hidden></p>
+
   <form id="new" action="/upload.php" method="post" enctype="multipart/form-data" hidden>
-    <h2>New post</h2>
-    <label>Title <input name="title" maxlength="200" required></label>
-    <label>Text <textarea name="content" rows="8" maxlength="20000" required></textarea></label>
-    <label>Photo, audio or video <input type="file" name="media" accept="image/*,audio/*,video/*"></label>
-    <button type="submit">Publish</button>
+    <h2>Write a post</h2>
+    <label for="t">Title</label>
+    <input id="t" name="title" maxlength="200" required autocomplete="off">
+    <label for="c">What’s on your mind?</label>
+    <textarea id="c" name="content" rows="6" maxlength="20000" required></textarea>
+    <label for="m">Photo, audio or video (optional)</label>
+    <input id="m" type="file" name="media" accept="image/*,audio/*,video/*">
+    <button type="submit" id="go">Publish</button>
   </form>
 
+  <h2 id="listhead" hidden>Your posts</h2>
   <section id="posts" aria-live="polite"><p>Loading posts…</p></section>
 </main>
 
 <script>
 (async () => {
   const admin = location.pathname.replace(/\/+$/, '') === '/admin';
+  const $ = (id) => document.getElementById(id);
+
   if (admin) {
-    document.getElementById('new').hidden = false;
-    document.getElementById('mode').hidden = false;
+    document.body.classList.add('admin');
+    $('new').hidden = false;
+    $('listhead').hidden = false;
+    $('viewsite').hidden = false;
+    $('tag').textContent = 'Admin';
+
+    const q = new URLSearchParams(location.search);
+    let msg = '', cls = '';
+    if (q.has('posted'))       { msg = 'Posted! It’s live on the site.'; cls = 'ok'; }
+    else if (q.has('deleted')) { msg = 'Post deleted.'; cls = 'ok'; }
+    else if (q.get('error'))   { msg = q.get('error'); cls = 'bad'; }
+    if (msg) {
+      $('note').textContent = msg;
+      $('note').className = 'note ' + cls;
+      $('note').hidden = false;
+      history.replaceState(null, '', '/admin');
+    }
+
+    $('new').addEventListener('submit', () => {
+      $('go').disabled = true;
+      $('go').textContent = 'Posting…';
+    });
   }
 
-  const box = document.getElementById('posts');
+  const box = $('posts');
   let posts = [];
   try {
     const res = await fetch('/posts.json', { cache: 'no-store' });
@@ -45,48 +74,44 @@
 
   box.replaceChildren();
   if (!posts.length) {
-    box.textContent = admin ? 'No posts yet. Write the first one above.' : 'No posts yet.';
+    box.textContent = admin ? 'No posts yet. Write your first one above!' : 'Nothing here yet. Check back soon!';
     return;
   }
 
   for (const p of posts) {
     const post = document.createElement('article');
-
     const h = document.createElement('h2');
     h.textContent = p.title;
-
     const when = document.createElement('time');
     when.textContent = p.date;
-
     post.append(h, when);
 
-    if (p.media && p.media.url) {
-      const kind = String(p.media.type || '').split('/')[0];
-      let m;
-      if (kind === 'image') {
-        m = document.createElement('img');
-        m.alt = p.title;
-        m.loading = 'lazy';
-      } else {
-        m = document.createElement(kind === 'audio' ? 'audio' : 'video');
-        m.controls = true;
-        m.preload = 'metadata';
+    if (!admin) {
+      if (p.media && p.media.url) {
+        const kind = String(p.media.type || '').split('/')[0];
+        let m;
+        if (kind === 'image') {
+          m = document.createElement('img');
+          m.alt = p.title;
+          m.loading = 'lazy';
+        } else {
+          m = document.createElement(kind === 'audio' ? 'audio' : 'video');
+          m.controls = true;
+          m.preload = 'metadata';
+        }
+        m.src = p.media.url;
+        post.append(m);
       }
-      m.src = p.media.url;
-      post.append(m);
-    }
-
-    const body = document.createElement('p');
-    body.className = 'body';
-    body.textContent = p.content;
-    post.append(body);
-
-    if (admin) {
+      const body = document.createElement('p');
+      body.className = 'body';
+      body.textContent = p.content;
+      post.append(body);
+    } else {
       const f = document.createElement('form');
       f.method = 'post';
       f.action = '/delete.php';
       f.addEventListener('submit', (e) => {
-        if (!confirm('Delete this post and its media?')) e.preventDefault();
+        if (!confirm('Delete this post? This can’t be undone.')) e.preventDefault();
       });
       const id = document.createElement('input');
       id.type = 'hidden';
@@ -95,11 +120,10 @@
       const b = document.createElement('button');
       b.type = 'submit';
       b.className = 'danger';
-      b.textContent = 'Delete post';
+      b.textContent = 'Delete';
       f.append(id, b);
       post.append(f);
     }
-
     box.append(post);
   }
 })();
