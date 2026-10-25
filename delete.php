@@ -34,10 +34,20 @@ if ($fp && flock($fp, LOCK_EX)) {
         $posts = [];
     }
     foreach ($posts as $p) {
-        if (($p['id'] ?? null) === $id && !empty($p['media']['url'])) {
-            $path = UPLOADS . basename((string)$p['media']['url']);
-            if (is_file($path)) {
-                unlink($path);
+        if (($p['id'] ?? null) !== $id) {
+            continue;
+        }
+        // media is a list now; older posts stored a single item
+        $items = $p['media'] ?? [];
+        if (is_array($items) && isset($items['url'])) {
+            $items = [$items];
+        }
+        foreach ((is_array($items) ? $items : []) as $m) {
+            if (!empty($m['url'])) {
+                $path = UPLOADS . basename((string)$m['url']);
+                if (is_file($path)) {
+                    unlink($path);
+                }
             }
         }
     }

@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="light only">
 <meta name="darkreader-lock">
 <title>bradley.party</title>
-<link rel="stylesheet" href="/style.css?v=3">
+<link rel="stylesheet" href="/style.css?v=4">
 </head>
 <body>
 <header>
@@ -24,8 +24,8 @@
     <input id="t" name="title" maxlength="200" required autocomplete="off">
     <label for="c">What’s on your mind?</label>
     <textarea id="c" name="content" rows="6" maxlength="20000" required></textarea>
-    <label for="m">Photo, audio or video (optional)</label>
-    <input id="m" type="file" name="media" accept="image/*,audio/*,video/*">
+    <label for="m">Photos, audio or video (optional, pick as many as you like)</label>
+    <input id="m" type="file" name="media[]" accept="image/*,audio/*,video/*" multiple>
     <button type="submit" id="go">Publish</button>
   </form>
 
@@ -63,6 +63,51 @@
     });
   }
 
+  function makeImg(url, alt) {
+    const m = document.createElement('img');
+    m.alt = alt;
+    m.loading = 'lazy';
+    m.src = url;
+    return m;
+  }
+
+  function slideshow(images, alt) {
+    const wrap = document.createElement('div');
+    wrap.className = 'show';
+    const img = document.createElement('img');
+    img.alt = alt;
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    const prev = document.createElement('button');
+    prev.type = 'button';
+    prev.textContent = '« Previous';
+    const count = document.createElement('span');
+    const next = document.createElement('button');
+    next.type = 'button';
+    next.textContent = 'Next »';
+    let i = 0;
+    const go = (n) => {
+      i = (n + images.length) % images.length;
+      img.src = images[i].url;
+      count.textContent = (i + 1) + ' of ' + images.length;
+      new Image().src = images[(i + 1) % images.length].url;
+    };
+    prev.addEventListener('click', () => go(i - 1));
+    next.addEventListener('click', () => go(i + 1));
+    let x = null;
+    img.addEventListener('touchstart', (e) => { x = e.touches[0].clientX; }, { passive: true });
+    img.addEventListener('touchend', (e) => {
+      if (x === null) return;
+      const dx = e.changedTouches[0].clientX - x;
+      if (Math.abs(dx) > 40) go(i + (dx < 0 ? 1 : -1));
+      x = null;
+    });
+    bar.append(prev, count, next);
+    wrap.append(img, bar);
+    go(0);
+    return wrap;
+  }
+
   const box = $('posts');
   let posts = [];
   try {
@@ -89,20 +134,20 @@
     post.append(h, when);
 
     if (!admin) {
-      if (p.media && p.media.url) {
-        const kind = String(p.media.type || '').split('/')[0];
-        let m;
-        if (kind === 'image') {
-          m = document.createElement('img');
-          m.alt = p.title;
-          m.loading = 'lazy';
-        } else {
-          m = document.createElement(kind === 'audio' ? 'audio' : 'video');
-          m.controls = true;
-          m.preload = 'metadata';
-        }
-        m.src = p.media.url;
-        post.append(m);
+      const media = !p.media ? [] : (Array.isArray(p.media) ? p.media : [p.media]);
+      const isImg = (m) => String(m.type || '').startsWith('image/');
+      const images = media.filter(isImg);
+      if (images.length === 1) {
+        post.append(makeImg(images[0].url, p.title));
+      } else if (images.length > 1) {
+        post.append(slideshow(images, p.title));
+      }
+      for (const m of media.filter((m) => !isImg(m))) {
+        const el = document.createElement(String(m.type).startsWith('audio/') ? 'audio' : 'video');
+        el.controls = true;
+        el.preload = 'metadata';
+        el.src = m.url;
+        post.append(el);
       }
       const body = document.createElement('p');
       body.className = 'body';
