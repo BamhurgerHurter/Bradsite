@@ -1,29 +1,29 @@
 <?php
-$jsonFile = '/var/www/blog-data/posts.json';
+declare(strict_types=1);
 
-if (isset($_GET['id'])) {
-    $id = intval($_GET['id']);
-    
-    if (file_exists($jsonFile)) {
-        $posts = json_decode(file_get_contents($jsonFile), true);
-        
-        // Find media to delete from disk if it exists
-        foreach ($posts as $p) {
-            if ($p['id'] === $id && !empty($p['media'])) {
-                $filePath = '/var/www/blog-data' . $p['media']['url'];
-                if (file_exists($filePath)) {
-                    unlink($filePath);
-                }
-            }
+$jsonFile  = '/var/www/blog-data/posts.json';
+$uploadDir = '/var/www/blog-data/uploads/';
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['id'])) { http_response_code(405); exit; }
+$id = (int)$_POST['id'];
+
+$fp = fopen($jsonFile, 'c+');
+if ($fp && flock($fp, LOCK_EX)) {
+    $posts = json_decode(stream_get_contents($fp) ?: '[]', true);
+    if (!is_array($posts)) { $posts = []; }
+    foreach ($posts as $p) {
+        if (($p['id'] ?? null) === $id && !empty($p['media']['url'])) {
+            $f = $uploadDir . basename($p['media']['url']);
+            if (is_file($f)) { unlink($f); }
         }
-        
-        $posts = array_values(array_filter($posts, function($p) use ($id) {
-            return $p['id'] !== $id;
-        }));
-        
-        file_put_contents($jsonFile, json_encode($posts, JSON_PRETTY_PRINT));
     }
+    $posts = array_values(array_filter($posts, fn($p) => ($p['id'] ?? null) !== $id));
+    ftruncate($fp, 0);
+    rewind($fp);
+    fwrite($fp, json_encode($posts, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+    fflush($fp);
+    flock($fp, LOCK_UN);
+    fclose($fp);
 }
 header('Location: /admin');
 exit;
-?>
